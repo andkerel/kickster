@@ -1,0 +1,323 @@
+
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Kickster</title>
+
+<link rel="stylesheet" href="main.css">
+<link href='http://fonts.googleapis.com/css?family=Lobster' rel='stylesheet' type='text/css'>
+<link href='http://fonts.googleapis.com/css?family=Lato:100,300,400,700,900' rel='stylesheet' type='text/css'>
+
+<script src="https://cdn.socket.io/socket.io-1.3.4.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+
+
+<script>
+
+$(document).ready(function() {
+
+
+    var colorArray = ["#0AC2D2", "#FDC162", "#60D7A9", "#E91E63", "#b554c6"];
+    var randomNum = Math.floor((Math.random() * colorArray.length));
+    var userColor = colorArray[randomNum];
+
+    $("body").css("background-color", userColor);
+    $("#message").css("background-color", userColor);
+    $("#messageSection").css("background-color", userColor);
+    $("#header").css("background-color", userColor);
+
+
+    ////////////////////
+    //GLOBAL VARIABLES//
+    ////////////////////
+
+    var socket = io.connect('http://localhost:3000');
+
+    var userCount = [];
+
+    var userObj = {};
+
+    var timeout;
+
+    //////////////
+    //CONNECTION//
+    //////////////
+
+    //start connection
+    socket.on("connect", function() {
+
+        console.log("connected");
+        // window.addEventListener("keydown", function(e) {
+        //     if (e.keyCode == 13) sendMsg();      
+        // });
+    });
+
+    $('#start').click(function() {
+
+        var nameValue = $('#name').val();
+        var name;
+
+        if (nameValue=="") {
+
+            var nameArray = ["anonymous cow", "anonymous duck", "anonymous chicken", "anonymous blueberry", "anonymous carrot"];
+            var randomName = Math.floor((Math.random() * nameArray.length));
+
+            name = nameArray[randomName];
+            var id = socket.id;
+            userCount.push(id);
+            console.log(userCount.length);
+            socket.emit('joinRoom', {name: name, id: id, length: userCount.length});
+
+            $('#name').empty();
+
+        } else {
+            name = nameValue;
+            var id = socket.id;
+            userCount.push(id);
+            console.log(userCount.length);
+            socket.emit('joinRoom', {name: name, id: id, length: userCount.length});
+
+            $('#name').empty();
+        }
+
+    });
+
+    socket.on('join', function(userObj) {
+
+        if (userObj[socket.id]) {
+
+            if (userObj[socket.id].length < 4) {
+
+                $("#startButtons").css('display', 'none');
+                $("#chat").css("display", "block");
+
+                $("#header").append($("<p></p>").html("Please wait for all chatty cathies..."));
+
+
+            } else if (userObj[socket.id].length == 4) {
+
+                $("#startButtons").hide();
+                $("#chat").css("display", "block");
+
+                socket.emit('ready', userObj);
+
+                console.log(userObj[socket.id].name);
+                console.log(userObj[socket.id].length);
+                console.log(userObj[socket.id].leader);
+
+            } 
+
+        } else {
+
+           //to get here for testing - try to get into full room
+            $("#slogan").empty();
+            $("#slogan").html("Sorry, the room is full! Try again?");
+            $("#start").empty();
+            $("#start").html("Try Again").addClass("redo");
+            $('#logo').attr("src", "images/full.svg");
+
+
+            //REFRESH PAGE
+            $(".redo").click(function() {
+                console.log("refresh");
+                window.location.href = 'index.html';
+            });
+
+        }
+        
+    });
+
+
+    //////////
+    //TIMERS//
+    //////////
+
+    function counter() {
+
+        socket.emit('reset');
+        socket.on('resetReturn', function(userObj) {
+
+            timeout = setTimeout(showButtons, 30000, userObj);
+
+
+        })
+
+    }
+
+    //////////////
+    //GAME START//
+    //////////////
+
+    socket.on('ready', function(userObj) {
+
+            // GAME STUFF
+            socket.emit(console.log("ALL GAME NOW PLEASE"));
+            $("#messageSection").css("display", "block"); 
+            $("#header").empty();
+            counter(); 
+
+    });
+
+
+    //////////////
+    //GROUP CHAT//
+    //////////////
+
+    function sendMsg() {
+
+        var id = socket.id;
+        var msg = $('#message').val();
+        var msgPack = {id: id, msg: msg};
+
+        socket.emit('chat message', msgPack);
+
+        $('#message').val('');
+        return false;
+    }
+
+    socket.on('chat', function(msgDeliver){
+        $('#allMessages').append($('<div></div>').addClass('messageDiv').text(msgDeliver.name + ": " + msgDeliver.msg));
+        $("#allMessages").scrollTop($("#allMessages")[0].scrollHeight);
+    });
+    
+    $('#send').click(function() {sendMsg()});
+
+
+    ///////////////
+    //LEADER KICK//
+    ///////////////
+
+    function showButtons(userObj) {
+
+    console.log('buttons?');
+    clearTimeout(timeout);
+    kick();
+
+    function kick() {
+
+        var newCount = 0;
+        for (var number in userObj) {
+            newCount ++;
+        }
+        console.log(newCount);
+
+        $("#header").empty();
+
+        if (userObj[socket.id].leader == true) {
+
+            if (newCount > 1) {
+
+                    for (var number in userObj) {
+                        if (userObj[number].leader == false) {
+                            $('#header').append($("<div></div>").addClass('button kickerButton').text(userObj[number].name).attr('id', userObj[number].id));
+                        }
+                    }
+
+                    $('.kickerButton').click(function() {
+                        nameID = this.id;
+                        $('#header').empty();
+                        socket.emit('kickUser', nameID);
+                        setTimeout(counter, 1000);
+                    })
+                        
+                } 
+
+                else {
+
+                console.log("GAME OVER");
+                    
+                    //to get here for testing- kick everyone out of the room
+                    $('#header').empty();
+                    $('#chat').css("display", 'none');
+
+                    $("#startButtons").css('display', 'block');
+                    $("#logo").attr("src", "images/sad.svg");
+                    $("#title").html("THATS IT!");
+                    $
+                    $("#slogan").html("You\'ve kicked everyone out! Are you a little lonely now?");
+                     $("#nameInput").remove();
+                    // $('#startButtons').append("<div id='refresh' class='button'> Try Again </div>");
+
+                    // //REFRESH PAGE
+                    setTimeout(lastRefresh, 5000);
+                    function lastRefresh() {
+                        window.location.href = 'index.html';
+                    }
+
+                }
+            } else {
+
+                  $('#header').append($("<div></div>").addClass('The kickster could kick you out at any time...'));
+                //GAME OVER
+            }
+        }
+    }
+
+    socket.on('kickFinished', function(userObj, kickedID) {
+
+        console.log("KICK FINISH");
+
+        if (userObj[socket.id].kicked == true) {
+             location.replace("kicked.html");
+        } else if (userObj[socket.id].kicked == false) {
+            $('#allMessages').append($("<div></div>").text(userObj[kickedID].name+" has been kicked!"));
+            console.log(userObj[kickedID].name+" has been kicked!");
+        }
+
+    });
+
+
+    ////////////////////////
+    //DISCONNECTION NOTICE//
+    ////////////////////////
+
+    socket.on('exitNotify', function(data) {
+        console.log(data);
+    })
+
+});
+
+</script>
+
+</head>
+
+<body>
+
+   
+    <div id="startButtons">
+
+        <img id="logo" src="images/kick.svg"/>
+        <h1 id="title">KICKSTER</h1>
+        <p id="slogan">If you're lucky enough to be the kickster, you get to kick your friends out of the chat!<p/>
+
+        <div id="nameInput">
+
+            <input type="text" id="name" maxlength="20" placeholder="Name" required autofocus/>
+
+            <button class="button" id="start"> Start </button>
+
+        </div>
+
+    </div>
+    
+    <div id="chat">
+
+      <div id="header">
+      </div>
+
+    <div id="allMessages"></div>
+
+      <div id="messageSection">
+
+        <textarea id="message" maxlength="200" placeholder="Your Message" required></textarea>
+
+        <div class="button" id="send"> Send </div>
+
+      </div>
+
+    </div>
+
+
+</body>
+</html>
